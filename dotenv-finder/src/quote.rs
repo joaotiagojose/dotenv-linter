@@ -14,14 +14,18 @@ impl Quote {
     }
 
     fn is_quoted(&self, val: &str) -> bool {
-        val.starts_with(self.as_char())
-            && (val.len() == 1
-                || !val.ends_with(self.as_char())
-                || is_escaped(&val[..val.len() - 1]))
+        let Some(rest) = val.strip_prefix(self.as_char()) else {
+            return false;
+        };
+
+        // A closed value may have an inline comment after its closing quote.
+        !rest
+            .char_indices()
+            .any(|(index, ch)| ch == self.as_char() && !is_escaped(&rest[..index]))
     }
 }
 
-/// Returns the `Quote` for a `&str` starting with a quote-char
+/// Returns the `Quote` for a value whose leading quote has not been closed yet.
 pub(crate) fn get_quote(val: &str) -> Option<Quote> {
     [Quote::Single, Quote::Double]
         .into_iter()
@@ -60,5 +64,25 @@ mod tests {
     #[test]
     fn test_double_quoted_for_single_quoted_str() {
         assert!(!Quote::Double.is_quoted("\'some_single_quoted_str"))
+    }
+
+    #[test]
+    fn closed_quotes_with_inline_comments_do_not_start_multiline_values() {
+        for value in [
+            r#""two words" # comment"#,
+            r#""has \" # inside" # comment"#,
+            r#""ends with \\" # comment"#,
+        ] {
+            assert!(!Quote::Double.is_quoted(value), "{value}");
+        }
+        assert!(!Quote::Single.is_quoted("'two words' # comment"));
+    }
+
+    #[test]
+    fn hashes_and_escaped_quotes_do_not_close_multiline_values() {
+        for value in [r#""two # words"#, r#""two \" # words"#] {
+            assert!(Quote::Double.is_quoted(value), "{value}");
+        }
+        assert!(Quote::Single.is_quoted("'two # words"));
     }
 }
