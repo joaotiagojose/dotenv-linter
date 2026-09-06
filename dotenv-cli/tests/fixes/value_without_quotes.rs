@@ -20,3 +20,14 @@ fn value_without_quotes() {
 
     testdir.close();
 }
+
+#[test]
+fn valid_values_with_inline_comments_are_unchanged() {
+    let content = "A=plain # comment\nB=\"two words\" # comment\nC=€ # comment\n";
+    let testdir = TestDir::new();
+    let testfile = testdir.create_testfile(".env", content);
+
+    testdir.test_command_fix_success(fix_output(&[(".env", &[])]));
+
+    assert_eq!(content, testfile.contents());
+}
